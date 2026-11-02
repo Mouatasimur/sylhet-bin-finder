@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Sylhet Bin Finder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--bg:#070d0b;--card:rgba(20,34,29,.92);--ink:#e8f5ef;--mute:#8fa89d;--line:#22392f;--neon:#3dffb0;--big:#ff9d4d;--general:#9fb3c8;--recycle:#5eb0ff;--organic:#ffd166}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{padding:14px 14px 4px}
+h1{font-size:1.4rem;margin:0;letter-spacing:.2px;background:linear-gradient(90deg,var(--neon),#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{margin:2px 0 0;color:var(--mute);font-size:.88rem}
+.chips{display:flex;gap:8px;padding:8px 14px 2px;overflow-x:auto}
+.chip{flex:0 0 auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 13px;font-size:.8rem;color:var(--mute)}
+.chip b{display:block;font-size:1.05rem;color:var(--neon)}
+.bar{display:flex;gap:8px;padding:8px 14px 4px;flex-wrap:wrap}
+button,select,input{font:inherit;color:var(--ink)}
+button{border:1px solid var(--line);background:var(--card);padding:9px 14px;border-radius:12px;cursor:pointer;min-height:44px}
+button.primary{background:var(--neon);border-color:var(--neon);color:#04140d;font-weight:700;box-shadow:0 0 18px rgba(61,255,176,.35)}
+button.on{outline:2px solid var(--neon)}
+button.sm{min-height:34px;padding:5px 10px;font-size:.85rem;margin-top:8px}
+:focus-visible{outline:3px solid var(--neon);outline-offset:2px}
+select,input{border:1px solid var(--line);background:var(--card);padding:9px 12px;border-radius:12px;min-height:44px}
+#find{flex:1 1 180px;min-width:150px}
+#addpanel{display:none;gap:8px;padding:0 14px 4px;flex-wrap:wrap}#addpanel.show{display:flex}
+#addpanel input{flex:1;min-width:140px}
+#status{padding:4px 14px;font-size:.86rem;color:var(--mute);min-height:28px}
+#map{flex:1 1 58%;min-height:300px;margin:0 10px;border:1px solid var(--line);border-radius:18px;background:#0b1512}
+#list{flex:1 1 32%;overflow:auto;margin:0;padding:10px 14px;list-style:none}
+#list li{background:var(--card);border:1px solid var(--line);border-left-width:5px;border-radius:14px;padding:10px 13px;margin-bottom:8px;cursor:pointer}
+#list li b{display:block}#list li span{color:var(--mute);font-size:.86rem}
+footer{padding:4px 14px 10px;font-size:.76rem;color:var(--mute)}
+.leaflet-container{background:#0b1512;font:inherit}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#14221d;color:var(--ink);border:1px solid var(--line)}
+.leaflet-control-zoom a{background:#14221d;color:var(--ink);border-color:var(--line)}
+.leaflet-control-attribution{background:rgba(7,13,11,.7)!important;color:var(--mute)!important}
+.leaflet-control-attribution a{color:var(--mute)!important}
+.dot{width:16px;height:16px;border-radius:50%;border:2px solid #07110d;box-shadow:0 0 12px currentColor}
+.bigm{width:30px;height:30px;border-radius:9px;background:var(--big);border:2px solid #07110d;display:grid;place-items:center;font-size:16px;box-shadow:0 0 16px rgba(255,157,77,.55)}
+.truck{font-size:30px;filter:drop-shadow(0 0 8px rgba(61,255,176,.7))}
+.you{width:16px;height:16px;border-radius:50%;background:#ff4d8d;border:3px solid #fff;box-shadow:0 0 14px #ff4d8d}
+.lbl{white-space:nowrap;font-weight:600;color:#e8f5ef;text-shadow:0 0 4px #000,0 0 8px #000,0 1px 2px #000;pointer-events:none;transform:translate(-50%,-50%)}
+.lbl.t1{font-size:15px;letter-spacing:.3px}.lbl.t2{font-size:13px;color:#c9ddd3}.lbl.t3{font-size:11.5px;color:#9fc4b4;font-weight:500}
+</style>
+</head>
+<body>
+<header><h1>Sylhet Bin Finder</h1><p>Find where to throw your trash, and when the truck comes.</p></header>
+<div class="chips">
+  <div class="chip">Big points<b id="c1">0</b></div>
+  <div class="chip">Small bins<b id="c2">0</b></div>
+  <div class="chip">Truck<b id="c3">Demo</b></div>
+</div>
+<div class="bar">
+  <button class="primary" id="locate">Nearest bin</button>
+  <input id="find" list="places" placeholder="Go to a place (Zindabazar…)" aria-label="Go to a place" autocomplete="off">
+  <datalist id="places"></datalist>
+  <select id="filter" aria-label="Show"><option value="all">Everything</option><option value="big">Big points only</option><option value="general">General bins</option><option value="recycle">Recycling bins</option><option value="organic">Organic bins</option></select>
+  <button id="addbtn">Add a bin</button>
+</div>
+<div id="addpanel">
+  <input id="newname" placeholder="Where is it? (e.g. Outside Pizza Hut)" maxlength="60">
+  <select id="newtype" aria-label="New bin type"><option value="general">General waste</option><option value="recycle">Recycling</option><option value="organic">Organic</option></select>
+</div>
+<div id="status" role="status" aria-live="polite"></div>
+<div id="map"></div>
+<ul id="list"></ul>
+<footer>Place labels, bins and pickup times are approximate samples, not official. The truck is a simulation until you connect a real GPS feed. Map © OpenStreetMap contributors © CARTO.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+// ===== EDIT ME =====
+var TRUCK_FEED_URL = ""; // JSON {"lat":..,"lng":..,"updated":"ISO time"} from a real truck GPS
+// Big collection points: sched = daily pickup times (samples)
+var BIG = [
+  {name:"Lalmatia Dumping Ground (final stop)", lat:24.8480, lng:91.8330, sched:[], note:"SCC’s main dump"},
+  {name:"Tilagor transfer point", lat:24.9140, lng:91.9040, sched:["07:00","15:00"], note:"Transfer station"},
+  {name:"Shibganj collection point", lat:24.9080, lng:91.8830, sched:["06:30","14:30"], note:"Sample"},
+  {name:"Mirabazar collection point", lat:24.9030, lng:91.8780, sched:["06:00","13:30"], note:"Sample"},
+  {name:"Lamabazar collection point", lat:24.9100, lng:91.8960, sched:["08:00","16:00"], note:"Sample"},
+  {name:"Bilpar collection point", lat:24.8920, lng:91.8600, sched:["07:30","15:30"], note:"Sample"}
+];
+var SAMPLE = [
+  {name:"Zindabazar", lat:24.8998, lng:91.8705, type:"general", note:"Sample"},
+  {name:"Ambarkhana Point", lat:24.9040, lng:91.8690, type:"general", note:"Sample"},
+  {name:"Bandarbazar", lat:24.8935, lng:91.8660, type:"organic", note:"Sample"},
+  {name:"Shahjalal Upashahar", lat:24.9170, lng:91.8830, type:"recycle", note:"Sample"},
+  {name:"Naiorpul", lat:24.8975, lng:91.8750, type:"general", note:"Sample"}
+];
+// Map labels. z = zoom level where the label appears (13 far, 16 close). t = size tier 1–3.
+var PLACES = [
+  {n:"Ambarkhana",lat:24.9050,lng:91.8695,z:13,t:1},
+  {n:"Zindabazar",lat:24.8998,lng:91.8710,z:13,t:1},
+  {n:"Bandarbazar",lat:24.8935,lng:91.8650,z:13,t:1},
+  {n:"Lamabazar",lat:24.9110,lng:91.8970,z:13,t:1},
+  {n:"Shahjalal Upashahar",lat:24.9190,lng:91.8830,z:13,t:1},
+  {n:"Chowhatta",lat:24.8972,lng:91.8668,z:14,t:2},
+  {n:"Shah Jalal Dargah",lat:24.9030,lng:91.8655,z:14,t:2},
+  {n:"Sylhet District Stadium",lat:24.8990,lng:91.8795,z:14,t:2},
+  {n:"Housing Estate",lat:24.9125,lng:91.8905,z:14,t:2},
+  {n:"Mirabazar",lat:24.9035,lng:91.8775,z:14,t:2},
+  {n:"Shibganj",lat:24.9085,lng:91.8835,z:14,t:2},
+  {n:"Bilpar",lat:24.8925,lng:91.8595,z:14,t:2},
+  {n:"Tilagor",lat:24.9145,lng:91.9040,z:14,t:2},
+  {n:"Naiorpul",lat:24.8975,lng:91.8750,z:15,t:3}
+];
+for(var i=1;i<=9;i++)PLACES.push({n:"Lane "+i,lat:24.9150+(i-1)*0.0005,lng:91.8795+(i%2)*0.0012,z:16,t:3}); // placeholder spot: move to the right area
+// ===================
+var LABEL={general:"General bin",recycle:"Recycling bin",organic:"Organic bin",big:"Big collection point"};
+var KEY="sylhet-bins-added",KEY2="sylhet-collected";
+function css(t){return getComputedStyle(document.documentElement).getPropertyValue("--"+t).trim();}
+function rd(k,d){try{return JSON.parse(localStorage.getItem(k)||d);}catch(e){return JSON.parse(d);}}
+function wr(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+var bins=SAMPLE.concat(rd(KEY,"[]")),collected=rd(KEY2,"{}");
+var userPos=null,userMarker=null,addMode=false;
+
+var map=L.map("map",{zoomControl:false}).setView([24.8990,91.8740],14);
+L.control.zoom({position:"bottomright"}).addTo(map);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:19,attribution:"© OpenStreetMap © CARTO"}).addTo(map);
+var layer=L.layerGroup().addTo(map),labels=L.layerGroup().addTo(map);
+
+function drawLabels(){
+  labels.clearLayers();var z=map.getZoom();
+  PLACES.forEach(function(p){if(z>=p.z)L.marker([p.lat,p.lng],{interactive:false,keyboard:false,icon:L.divIcon({className:"",html:'<div class="lbl t'+p.t+'">'+p.n+'</div>',iconSize:[0,0]})}).addTo(labels);});
+}
+map.on("zoomend",drawLabels);drawLabels();
+
+var dl=document.getElementById("places");
+PLACES.filter(function(p){return !/^Lane /.test(p.n);}).concat(BIG.map(function(b){return {n:b.name,lat:b.lat,lng:b.lng};})).forEach(function(p){var o=document.createElement("option");o.value=p.n;dl.appendChild(o);});
+document.getElementById("find").onchange=function(){
+  var v=this.value.trim().toLowerCase();
+  var all=PLACES.concat(BIG.map(function(b){return {n:b.name,lat:b.lat,lng:b.lng};})).concat(bins.map(function(b){return {n:b.name,lat:b.lat,lng:b.lng};}));
+  var hit=all.filter(function(p){return p.n.toLowerCase()===v;})[0]||all.filter(function(p){return p.n.toLowerCase().indexOf(v)>-1;})[0];
+  if(hit){map.flyTo([hit.lat,hit.lng],16);say("Showing "+hit.n+".");}else say("No place called “"+this.value+"”. Try one from the list.");
+};
+
+function dist(a,b){var R=6371000,r=Math.PI/180,dl=(b.lat-a.lat)*r,dg=(b.lng-a.lng)*r;var x=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
+function fmt(m){return m<1000?Math.round(m)+" m":(m/1000).toFixed(1)+" km";}
+function nextPickup(s){if(!s.length)return null;var now=new Date(),best=null;
+  s.forEach(function(x){var p=x.split(":"),d=new Date(now);d.setHours(+p[0],+p[1],0,0);if(d<=now)d.setDate(d.getDate()+1);if(!best||d<best)best=d;});
+  var m=Math.round((best-now)/60000);return m>=60?"in "+Math.floor(m/60)+"h "+m%60+"m":"in "+m+" min";}
+function ago(ts){var m=Math.round((Date.now()-ts)/60000);return m<1?"just now":m<60?m+" min ago":Math.floor(m/60)+"h ago";}
+function say(t){document.getElementById("status").textContent=t;}
+
+function render(){
+  layer.clearLayers();
+  var f=document.getElementById("filter").value,rows=[];
+  BIG.forEach(function(b){if(f==="all"||f==="big")rows.push({b:b,big:true});});
+  bins.forEach(function(b){if(f==="all"||f===b.type)rows.push({b:b,big:false});});
+  rows.forEach(function(r){r.d=userPos?dist(userPos,r.b):null;});
+  if(userPos)rows.sort(function(x,y){return x.d-y.d;});
+  var ul=document.getElementById("list");ul.innerHTML="";
+  rows.forEach(function(r){
+    var b=r.b,color=css(r.big?"big":b.type),icon=r.big
+      ?L.divIcon({className:"",html:'<div class="bigm">🗑️</div>',iconSize:[30,30],iconAnchor:[15,15]})
+      :L.divIcon({className:"",html:'<div class="dot" style="background:'+color+';color:'+color+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+    var m=L.marker([b.lat,b.lng],{icon:icon}).addTo(layer);
+    var li=document.createElement("li");li.style.borderLeftColor=color;
+    var t=document.createElement("b");t.textContent=(r.big?"🚛 ":"")+b.name;
+    var s=document.createElement("span"),bits=[LABEL[r.big?"big":b.type]];
+    if(r.d!==null)bits.push(fmt(r.d)+" away");
+    if(r.big){var np=nextPickup(b.sched);if(np)bits.push("next pickup "+np);if(collected[b.name])bits.push("collected "+ago(collected[b.name]));}
+    else if(b.note)bits.push(b.note);
+    s.textContent=bits.join(" · ");li.appendChild(t);li.appendChild(s);
+    var pop=document.createElement("div");pop.textContent=b.name+" · "+bits.slice(1).join(" · ");
+    if(r.big&&b.sched.length){var btn=document.createElement("button");btn.className="sm";btn.textContent="Truck came just now";
+      btn.onclick=function(e){e.stopPropagation();collected[b.name]=Date.now();wr(KEY2,collected);render();say("Thanks. Saved on this device.");};
+      pop.appendChild(document.createElement("br"));pop.appendChild(btn);}
+    m.bindPopup(pop);
+    li.onclick=function(){map.flyTo([b.lat,b.lng],16);m.openPopup();};
+    ul.appendChild(li);
+  });
+  document.getElementById("c1").textContent=BIG.length;document.getElementById("c2").textContent=bins.length;
+  return rows;
+}
+document.getElementById("filter").onchange=render;
+
+document.getElementById("locate").onclick=function(){
+  if(!navigator.geolocation){say("Your browser can’t share location. Pick a bin from the list.");return;}
+  say("Finding you…");
+  navigator.geolocation.getCurrentPosition(function(p){
+    userPos={lat:p.coords.latitude,lng:p.coords.longitude};
+    if(userMarker)map.removeLayer(userMarker);
+    userMarker=L.marker([userPos.lat,userPos.lng],{icon:L.divIcon({className:"",html:'<div class="you"></div>',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map).bindPopup("You are here");
+    var rows=render();
+    if(rows.length){var n=rows[0];say("Nearest: "+n.b.name+", "+fmt(n.d)+" away.");map.fitBounds([[userPos.lat,userPos.lng],[n.b.lat,n.b.lng]],{padding:[50,50],maxZoom:17});}
+  },function(){say("Location is blocked. Allow location for this site in browser settings, then try again.");},{enableHighAccuracy:true,timeout:12000});
+};
+document.getElementById("addbtn").onclick=function(){
+  addMode=!addMode;this.classList.toggle("on",addMode);this.textContent=addMode?"Cancel adding":"Add a bin";
+  document.getElementById("addpanel").classList.toggle("show",addMode);
+  say(addMode?"Type where the bin is, then tap the exact spot on the map.":"");
+};
+map.on("click",function(e){
+  if(!addMode)return;
+  var name=document.getElementById("newname").value.trim();
+  if(!name){say("Type where the bin is first, then tap the map.");document.getElementById("newname").focus();return;}
+  var nb={name:name,lat:+e.latlng.lat.toFixed(6),lng:+e.latlng.lng.toFixed(6),type:document.getElementById("newtype").value,note:"Added by you"};
+  var arr=rd(KEY,"[]");arr.push(nb);wr(KEY,arr);bins.push(nb);
+  document.getElementById("newname").value="";render();say("Added “"+name+"”.");
+});
+
+// Truck: real feed if TRUCK_FEED_URL is set, otherwise a looping demo
+var truck=L.marker([BIG[0].lat,BIG[0].lng],{icon:L.divIcon({className:"",html:'<div class="truck">🚛</div>',iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:1000}).addTo(map);
+var route=[BIG[0],BIG[3],BIG[2],BIG[4],BIG[1],BIG[2],BIG[5],BIG[0]],legMs=9000,t0=Date.now();
+L.polyline(route.map(function(p){return [p.lat,p.lng];}),{color:css("big"),weight:3,opacity:.45,dashArray:"6 8"}).addTo(map);
+function tick(){var el=(Date.now()-t0)%(legMs*(route.length-1)),i=Math.floor(el/legMs),f=(el%legMs)/legMs,a=route[i],b=route[i+1];
+  truck.setLatLng([a.lat+(b.lat-a.lat)*f,a.lng+(b.lng-a.lng)*f]);document.getElementById("c3").textContent="→ "+b.name.split(" ")[0];}
+function poll(){fetch(TRUCK_FEED_URL).then(function(r){return r.json();}).then(function(d){truck.setLatLng([d.lat,d.lng]);document.getElementById("c3").textContent="Live "+ago(new Date(d.updated).getTime());}).catch(function(){document.getElementById("c3").textContent="No signal";});}
+if(TRUCK_FEED_URL){poll();setInterval(poll,10000);}else{tick();setInterval(tick,500);say("The truck you see is a demo, not a real GPS position.");}
+render();
+</script>
+</body>
+</html>
